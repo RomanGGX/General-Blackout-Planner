@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Power Planner</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="phone-frame">
+    <!-- ONBOARDING / START SCREEN -->
+    <main class="tab-view" id="view-onboarding">
+      <div class="onboard-icon-box" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />
+        </svg>
+      </div>
+
+      <h1 class="onboard-title">General Blackout Planner</h1>
+      <p class="onboard-desc">
+        Your day, planned around the power schedule. Tasks that need electricity go to hours
+        with power. Everything else fits into the outages.
+      </p>
+
+      <div class="field-group onboard-address-group">
+        <label class="field-label" for="addressInput">Your address</label>
+        <input
+          class="text-input"
+          id="addressInput"
+          type="text"
+          placeholder="e.g. Khreshchatyk St, 22"
+          autocomplete="street-address"
+        />
+        <span class="field-helper">We use it only to find your outage group.</span>
+      </div>
+
+      <section class="group-result-card">
+        <div class="group-result-top">
+          <div>
+            <div class="group-found-label">Outage group found</div>
+            <div class="group-found-value" id="onboardGroupValue">Group 3.1</div>
+          </div>
+          <span class="city-badge" id="onboardCityBadge">Kyiv</span>
+        </div>
+
+        <div class="outage-summary-text" id="outageSummaryText">Today: 7 h without power</div>
+        <div class="mini-schedule-bar" id="miniScheduleBar"></div>
+
+        <p class="group-provider-note">
+          The schedule comes from your regional energy provider and updates when it changes.
+        </p>
+
+        <button class="primary-cta" id="planMyDayBtn" type="button">Plan my day</button>
+      </section>
+    </main>
+
+    <!-- TAB 1: TODAY -->
+    <main class="tab-view active" id="view-today">
+      <header class="header">
+        <div>
+          <div class="date-label" id="dateLabel">Mon, 16 Nov</div>
+          <h1 class="screen-title">Today</h1>
+        </div>
+        <button class="group-pill" id="groupBtnToday" type="button">Group 3.1</button>
+      </header>
+
+      <section class="status-card" id="statusCard"></section>
+
+      <section class="plan-section">
+        <div class="plan-header">
+          <h2 class="plan-heading">Your plan</h2>
+          <span class="plan-meta">Sorted automatically</span>
+        </div>
+        <div class="plan-scroll" id="planContainer"></div>
+      </section>
+    </main>
+
+    <!-- TAB 2: ADD TASK -->
+    <main class="tab-view" id="view-add">
+      <header class="header add-header">
+        <h1 class="screen-title">Add task</h1>
+        <button class="group-pill" id="groupBtnAdd" type="button">Group 3.1</button>
+      </header>
+
+      <form class="add-form" id="addTaskForm">
+        <div class="field-group">
+          <label class="field-label" for="taskTitleInput">What do you need to do?</label>
+          <input
+            class="text-input"
+            id="taskTitleInput"
+            type="text"
+            placeholder="e.g. Review algorithms notes"
+            autocomplete="off"
+          />
+        </div>
+
+        <div class="field-group">
+          <div class="field-label">Does it need electricity?</div>
+          <div class="segmented-two" id="powerOptions">
+            <button class="choice-pill active-filled" type="button" data-power="true">
+              Needs electricity
+            </button>
+            <button class="choice-pill" type="button" data-power="false">
+              No electricity needed
+            </button>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <div class="field-label">Priority</div>
+          <div class="segmented-three" id="priorityOptions">
+            <button class="choice-pill active-outline" type="button" data-priority="High">
+              High
+            </button>
+            <button class="choice-pill" type="button" data-priority="Medium">
+              Medium
+            </button>
+            <button class="choice-pill" type="button" data-priority="Low">
+              Low
+            </button>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <div class="field-label">How long will it take?</div>
+          <div class="duration-grid" id="durationOptions">
+            <button class="choice-pill" type="button" data-duration="15">15 min</button>
+            <button class="choice-pill" type="button" data-duration="30">30 min</button>
+            <button class="choice-pill active-filled" type="button" data-duration="60">1 h</button>
+            <button class="choice-pill" type="button" data-duration="custom">Custom</button>
+          </div>
+
+          <div class="custom-duration-row hidden" id="customDurationBox">
+            <input
+              class="text-input custom-min-input"
+              id="customDurationInput"
+              type="number"
+              min="5"
+              max="480"
+              step="5"
+              value="90"
+              aria-label="Custom duration in minutes"
+            />
+            <span class="custom-unit">min</span>
+          </div>
+        </div>
+
+        <div class="plan-preview-card" id="planPreviewCard">
+          <div class="preview-label">The app will plan it for</div>
+          <div class="preview-value" id="planPreviewValue">15:30–16:30 · power on</div>
+        </div>
+
+        <button class="primary-cta" type="submit">Add and auto-plan</button>
+      </form>
+    </main>
+
+    <!-- PLACEHOLDERS FOR MAP & MOOD -->
+    <main class="tab-view" id="view-map">
+      <header class="header map-header">
+        <div>
+          <div class="date-label">Places with power nearby</div>
+          <h1 class="screen-title">Map</h1>
+        </div>
+        <button class="group-pill" id="groupBtnMap" type="button">Group 3.1</button>
+      </header>
+
+      <div class="filter-row" id="mapFilters">
+        <button class="filter-chip active" type="button" data-filter="Generator">Generator</button>
+        <button class="filter-chip" type="button" data-filter="Wi-Fi">Wi-Fi</button>
+        <button class="filter-chip" type="button" data-filter="Sockets">Sockets</button>
+        <button class="filter-chip" type="button" data-filter="Quiet">Quiet</button>
+      </div>
+
+      <div class="map-canvas" id="mapCanvas"></div>
+
+      <div class="places-list" id="placesList"></div>
+    </main>
+
+    <!-- TAB 4: MOOD -->
+    <main class="tab-view" id="view-mood">
+      <header class="header mood-header">
+        <div>
+          <div class="date-label">Your wellbeing</div>
+          <h1 class="screen-title">Mood</h1>
+        </div>
+        <button class="group-pill" id="groupBtnMood" type="button">Group 3.1</button>
+      </header>
+
+      <section class="mood-card">
+        <h2 class="mood-card-title">How are you feeling today?</h2>
+        <div class="mood-scale" id="moodScale"></div>
+        <p class="mood-hint">Saved for today. How you feel is part of your plan too.</p>
+      </section>
+
+      <section class="mood-history-section">
+        <div class="mood-history-header">
+          <h2 class="mood-section-title">Last 7 days</h2>
+          <span class="mood-history-sub">log</span>
+        </div>
+        <div class="week-log-grid" id="weekLogGrid"></div>
+      </section>
+
+      <section class="outage-notes-card">
+        <h2 class="outage-title">During the outage</h2>
+        <textarea
+          class="outage-textarea"
+          id="outageNotesInput"
+          rows="3"
+          placeholder="some notes..."
+          aria-label="Notes during the outage"
+        ></textarea>
+        <button class="breathing-btn" id="breathingBtn" type="button">
+          Take a 1-minute breathing break
+        </button>
+        <div class="breathing-status hidden" id="breathingStatus" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <!-- Bottom Tab Bar -->
+    <nav class="bottom-nav" aria-label="Primary navigation">
+      <button class="nav-btn active" data-tab="today" type="button">Today</button>
+      <button class="nav-btn" data-tab="add" type="button">Add task</button>
+      <button class="nav-btn" data-tab="map" type="button">Map</button>
+      <button class="nav-btn" data-tab="mood" type="button">Mood</button>
+    </nav>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
