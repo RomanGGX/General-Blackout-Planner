@@ -261,16 +261,16 @@ function evaluateImmediateTask(task, manualTasks) {
 function buildIntervalBlocks(taskList = state.tasks) {
   const manualTasks = taskList.filter((t) => t.isManual);
 
-  const evaluatedAutoTasks = taskList
-    .filter((t) => !t.isManual)
+  const activeAutoTasks = taskList
+    .filter((t) => !t.isManual && !t.completed)
     .map((t) => ({
       ...t,
       immediateInfo: evaluateImmediateTask(t, manualTasks)
     }))
     .sort((a, b) => getPriorityRank(a.priority) - getPriorityRank(b.priority));
 
-  const topPinnedTasks = evaluatedAutoTasks.filter((t) => t.immediateInfo.isTopPinned);
-  const schedulableAutoTasks = evaluatedAutoTasks.filter((t) => !t.immediateInfo.isTopPinned);
+  const topPinnedTasks = activeAutoTasks.filter((t) => t.immediateInfo.isTopPinned);
+  const schedulableAutoTasks = activeAutoTasks.filter((t) => !t.immediateInfo.isTopPinned);
 
   const blocks = state.segments.map((seg) => {
     const isPast = seg.end <= state.nowMinutes;
@@ -282,7 +282,7 @@ function buildIntervalBlocks(taskList = state.tasks) {
         : seg.start;
 
     const fixedInBlock = manualTasks
-      .filter((t) => t.fixedStart >= seg.start && t.fixedStart < seg.end)
+      .filter((t) => !t.completed && t.fixedStart >= seg.start && t.fixedStart < seg.end)
       .map((t) => ({
         ...t,
         startTime: t.fixedStart,
@@ -293,7 +293,7 @@ function buildIntervalBlocks(taskList = state.tasks) {
 
     const freeWindows = isPast
       ? []
-      : getFreeWindowsInRange(activeStart, seg.end, manualTasks);
+      : getFreeWindowsInRange(activeStart, seg.end, manualTasks.filter((t) => !t.completed));
 
     return {
       start: seg.start,
@@ -321,12 +321,22 @@ function buildIntervalBlocks(taskList = state.tasks) {
       );
 
       if (win) {
+        const startTime = win.cursor;
+        const endTime = win.cursor + task.duration;
+
+        const originalTask = state.tasks.find((t) => t.id === task.id);
+        if (originalTask) {
+          originalTask.lastStartTime = startTime;
+          originalTask.lastEndTime = endTime;
+          originalTask.lastBlockHasPower = block.hasPower;
+        }
+
         block.assigned.push({
           ...task,
-          startTime: win.cursor,
-          endTime: win.cursor + task.duration
+          startTime,
+          endTime
         });
-        win.cursor += task.duration;
+        win.cursor = endTime;
         placed = true;
         break;
       }
@@ -337,8 +347,6 @@ function buildIntervalBlocks(taskList = state.tasks) {
     }
   }
 
-  // For top-pinned Immediate tasks that require power and have partial power-on time before deadline,
-  // reserve the portion that fits into power-on windows as a partial chunk while pinning the task on top.
   for (const task of topPinnedTasks) {
     if (!task.requiresPower || task.immediateInfo.availablePowerMinutes <= 0) continue;
 
@@ -374,9 +382,10 @@ function buildIntervalBlocks(taskList = state.tasks) {
       0
     );
   }
+  const completedTasks = taskList.filter((t) => t.completed);
 
   state.overflowTasks = overflowTasks;
-  return { blocks, topPinnedTasks };
+  return { blocks, topPinnedTasks, completedTasks };
 }
 
 function renderStatusCard() {
@@ -435,7 +444,7 @@ function renderStatusCard() {
 
 function renderPlan() {
   const container = document.getElementById("planContainer");
-  const { blocks, topPinnedTasks } = buildIntervalBlocks();
+  const { blocks, topPinnedTasks, completedTasks } = buildIntervalBlocks();
   const powerNow = isPowerOnNow();
 
   const immediateSectionHtml =
@@ -565,9 +574,49 @@ function renderPlan() {
 
   const pastBlocksHtml = blocks.filter((b) => b.isPast).map(renderBlockCard).join("");
   const activeAndFutureBlocksHtml = blocks.filter((b) => !b.isPast).map(renderBlockCard).join("");
+  const completedSectionHtml =
+    completedTasks.length > 0
+      ? `
+        <article class="interval-card completed-section">
+          <div class="interval-header">
+            <div class="interval-left">
+              <div class="interval-badge done">${checkSvg}</div>
+              <div>
+                <div class="interval-title">Completed tasks</div>
+                <div class="interval-desc">Done for today</div>
+              </div>
+            </div>
+            <div class="interval-range done">${completedTasks.length}</div>
+          </div>
+          ${completedTasks
+            .map((task) => {
+              const deadlinePart =
+                task.hasDeadline && task.deadlineTime ? ` · due ${task.deadlineTime}` : "";
+              const subText = task.isManual
+                ? `${formatTime(task.fixedStart)}–${formatTime(task.fixedEnd)} · ${formatDurationLabel(task.duration)}`
+                : `${task.priority} priority · ${formatDurationLabel(task.duration)}${deadlinePart}`;
 
-  container.innerHTML = pastBlocksHtml + immediateSectionHtml + activeAndFutureBlocksHtml;
+              return `
+                <div class="task-row" data-task-id="${task.id}">
+                  <div class="task-left">
+                    <div class="checkbox checked">${checkSvg}</div>
+                    <div>
+                      <div class="task-title-row">
+                        <span class="task-title completed">${task.title}</span>
+                      </div>
+                      <div class="task-sub">${subText}</div>
+                    </div>
+                  </div>
+                </div>
+              `;
+            })
+            .join("")}
+        </article>
+      `
+      : "";
 
+  container.innerHTML =
+    pastBlocksHtml + immediateSectionHtml + activeAndFutureBlocksHtml + completedSectionHtml;
   container.querySelectorAll(".map-link-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
