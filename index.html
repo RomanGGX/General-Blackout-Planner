@@ -89,9 +89,21 @@
             class="text-input"
             id="taskTitleInput"
             type="text"
-            placeholder="e.g. Review algorithms notes"
+            placeholder="e.g. Algorithms lecture"
             autocomplete="off"
           />
+        </div>
+
+        <div class="field-group">
+          <div class="field-label">Scheduling mode</div>
+          <div class="segmented-two" id="modeOptions">
+            <button class="choice-pill active-filled" type="button" data-mode="auto">
+              Auto-schedule
+            </button>
+            <button class="choice-pill" type="button" data-mode="manual">
+              Manual time
+            </button>
+          </div>
         </div>
 
         <div class="field-group">
@@ -106,9 +118,12 @@
           </div>
         </div>
 
-        <div class="field-group">
+        <div class="field-group" id="priorityFieldGroup">
           <div class="field-label">Priority</div>
-          <div class="segmented-three" id="priorityOptions">
+          <div class="segmented-four" id="priorityOptions">
+            <button class="choice-pill priority-immediate" type="button" data-priority="Immediate">
+              Immediate
+            </button>
             <button class="choice-pill active-outline" type="button" data-priority="High">
               High
             </button>
@@ -121,7 +136,8 @@
           </div>
         </div>
 
-        <div class="field-group">
+        <!-- AUTO DURATION -->
+        <div class="field-group" id="autoDurationGroup">
           <div class="field-label">How long will it take?</div>
           <div class="duration-grid" id="durationOptions">
             <button class="choice-pill" type="button" data-duration="15">15 min</button>
@@ -145,16 +161,56 @@
           </div>
         </div>
 
-        <div class="plan-preview-card" id="planPreviewCard">
-          <div class="preview-label">The app will plan it for</div>
-          <div class="preview-value" id="planPreviewValue">15:30–16:30 · power on</div>
+        <!-- DEADLINE FOR IMMEDIATE -->
+        <div class="field-group hidden" id="deadlineSection">
+          <div class="field-label">Deadline?</div>
+          <div class="segmented-two" id="deadlineToggleOptions">
+            <button class="choice-pill active-filled" type="button" data-has-deadline="true">
+              Yes
+            </button>
+            <button class="choice-pill" type="button" data-has-deadline="false">
+              No
+            </button>
+          </div>
+
+          <div class="deadline-input-row" id="deadlineInputBox">
+            <input
+              class="text-input deadline-time-input"
+              id="deadlineTimeInput"
+              type="time"
+              value="18:00"
+              aria-label="Deadline time"
+            />
+            <span class="custom-unit">today</span>
+          </div>
         </div>
 
-        <button class="primary-cta" type="submit">Add and auto-plan</button>
+        <!-- MANUAL TIME RANGE (FROM — TO) -->
+        <div class="field-group hidden" id="manualRangeGroup">
+          <div class="field-label">Fixed time range (From — To)</div>
+          <div class="time-range-grid">
+            <label class="time-box">
+              <span class="time-box-label">From</span>
+              <input class="text-input time-input" id="manualStartInput" type="time" value="13:30" />
+            </label>
+            <label class="time-box">
+              <span class="time-box-label">To</span>
+              <input class="text-input time-input" id="manualEndInput" type="time" value="14:50" />
+            </label>
+          </div>
+          <div class="field-helper" id="manualDurationHint">Duration: 1 h 20 min · Highest priority</div>
+        </div>
+
+        <div class="plan-preview-card" id="planPreviewCard">
+          <div class="preview-label" id="planPreviewLabel">The app will plan it for</div>
+          <div class="preview-value" id="planPreviewValue">13:00–14:00 · power on</div>
+        </div>
+
+        <button class="primary-cta" id="submitTaskBtn" type="submit">Add and auto-plan</button>
       </form>
     </main>
 
-    <!-- PLACEHOLDERS FOR MAP & MOOD -->
+    <!-- MAP -->
     <main class="tab-view" id="view-map">
       <header class="header map-header">
         <div>
