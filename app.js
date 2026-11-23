@@ -6,7 +6,7 @@ const state = {
   group: "Group 3.1",
   nowMinutes: 11 * 60 + 20, // 11:20
 segments: [
-    { start: 0, end: 360, hasPower: true },     // 00:00 - 06:00
+    { start: 0, end: 360, hasPower: false },     // 00:00 - 06:00
     { start: 360, end: 540, hasPower: true },   // 06:00 - 09:00
     { start: 540, end: 780, hasPower: false },  // 09:00 - 13:00
     { start: 780, end: 1020, hasPower: true },  // 13:00 - 17:00
@@ -237,7 +237,7 @@ function renderStatusCard() {
     ? `Off at ${formatTime(currentSeg.end)} · in ${formatDurationShort(remaining)}`
     : `Back on at ${formatTime(currentSeg.end)} · in ${formatDurationShort(remaining)}`;
 
-  const barStart = 360;
+  const barStart = 0;
   const barEnd = 1440;
   const totalSpan = barEnd - barStart;
   const nowPct = Math.min(100, Math.max(0, ((state.nowMinutes - barStart) / totalSpan) * 100));
@@ -265,6 +265,7 @@ function renderStatusCard() {
       <div class="timeline-track">${segmentsHtml}</div>
       <div class="now-marker" style="left: ${nowPct}%"></div>
       <div class="timeline-ticks">
+        <span>00:00</span>
         <span>06:00</span>
         <span>12:00</span>
         <span>18:00</span>
@@ -765,7 +766,7 @@ function renderOnboarding() {
   const addrInput = document.getElementById("addressInput");
   if (!bar || !summary) return;
 
-  const totalSpan = 1440 - 360; // 06:00 .. 24:00
+  const totalSpan = 1440; // 00:00 .. 24:00
   let totalOffMinutes = 0;
 
   bar.innerHTML = state.segments

@@ -228,6 +228,12 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.timeline-ticks span:nth-child(1) { text-align: left; }
+.timeline-ticks span:nth-child(2) { text-align: center; }
+.timeline-ticks span:nth-child(3) { text-align: center; }
+.timeline-ticks span:nth-child(4) { text-align: center; }
+.timeline-ticks span:nth-child(5) { text-align: right; }
+
 .legend {
   display: flex;
   align-items: center;
