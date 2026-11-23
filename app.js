@@ -65,10 +65,13 @@ segments: [
   ],
   draft: {
     title: "",
+    mode: "auto", // "auto" | "manual"
     requiresPower: true,
     priority: "High",
-    durationMode: "60", // "15" | "30" | "60" | "custom"
-    customMinutes: 90
+    durationMode: "60",
+    customMinutes: 90,
+    manualStart: "13:30",
+    manualEnd: "14:50"
   },
   map: {
     activeFilter: "Generator",
@@ -281,16 +284,34 @@ function renderStatusCard() {
   `;
 }
 
-function buildIntervalBlocks() {
+function buildIntervalBlocks(taskList = state.tasks) {
+  const manualTasks = taskList.filter((t) => t.isManual);
+  const autoTasks = taskList
+    .filter((t) => !t.isManual)
+    .sort((a, b) => getPriorityRank(a.priority) - getPriorityRank(b.priority));
+
   const blocks = state.segments.map((seg) => {
     const isPast = seg.end <= state.nowMinutes;
     const isCurrent = seg.start < state.nowMinutes && seg.end > state.nowMinutes;
-
-    const planCursor = isPast
+    const activeStart = isPast
       ? seg.end
       : isCurrent
         ? Math.max(seg.start, state.nowMinutes)
         : seg.start;
+
+    const fixedInBlock = manualTasks
+      .filter((t) => t.fixedStart >= seg.start && t.fixedStart < seg.end)
+      .map((t) => ({
+        ...t,
+        startTime: t.fixedStart,
+        endTime: t.fixedEnd,
+        duration: t.fixedEnd - t.fixedStart,
+        powerMismatch: t.requiresPower && !seg.hasPower
+      }));
+
+    const freeWindows = isPast
+      ? []
+      : getFreeWindowsInRange(activeStart, seg.end, manualTasks);
 
     return {
       start: seg.start,
@@ -298,36 +319,48 @@ function buildIntervalBlocks() {
       hasPower: seg.hasPower,
       isPast,
       isCurrent,
-      cursor: planCursor,
-      assigned: [],
-      freeMinutes: isPast ? 0 : Math.max(0, seg.end - planCursor)
+      activeStart,
+      freeWindows,
+      assigned: [...fixedInBlock],
+      freeMinutes: 0
     };
   });
 
-  const orderedTasks = [...state.tasks].sort(
-    (a, b) => getPriorityRank(a.priority) - getPriorityRank(b.priority)
-  );
-
   const overflowTasks = [];
 
-  for (const task of orderedTasks) {
-    const targetBlock = blocks.find(
-      (block) =>
-        !block.isPast &&
-        block.hasPower === task.requiresPower &&
-        block.cursor + task.duration <= block.end
-    );
+  for (const task of autoTasks) {
+    let placed = false;
 
-    if (targetBlock) {
-      targetBlock.assigned.push({
-        ...task,
-        startTime: targetBlock.cursor
-      });
-      targetBlock.cursor += task.duration;
-      targetBlock.freeMinutes = Math.max(0, targetBlock.end - targetBlock.cursor);
-    } else {
+    for (const block of blocks) {
+      if (block.isPast || block.hasPower !== task.requiresPower) continue;
+
+      const win = block.freeWindows.find(
+        (w) => w.cursor + task.duration <= w.end
+      );
+
+      if (win) {
+        block.assigned.push({
+          ...task,
+          startTime: win.cursor,
+          endTime: win.cursor + task.duration
+        });
+        win.cursor += task.duration;
+        placed = true;
+        break;
+      }
+    }
+
+    if (!placed) {
       overflowTasks.push(task);
     }
+  }
+
+  for (const block of blocks) {
+    block.assigned.sort((a, b) => a.startTime - b.startTime);
+    block.freeMinutes = block.freeWindows.reduce(
+      (sum, w) => sum + Math.max(0, w.end - w.cursor),
+      0
+    );
   }
 
   state.overflowTasks = overflowTasks;
@@ -341,6 +374,11 @@ function renderPlan() {
   container.innerHTML = blocks
     .map((block) => {
       const modeCls = block.hasPower ? "on" : "off";
+      const stateCls = block.isPast
+        ? "is-past"
+        : block.isCurrent
+          ? "is-current"
+          : "";
       const title = block.hasPower ? "Power on" : "No power";
       const desc = block.hasPower
         ? "Laptop, calls, charging, chores"
@@ -349,7 +387,21 @@ function renderPlan() {
 
       const tasksHtml = block.assigned
         .map((task) => {
-          const subText = `${task.priority} priority · ${formatDurationLabel(task.duration)}`;
+          const badges = [
+            task.isManual ? `<span class="fixed-badge">Fixed</span>` : "",
+            task.powerMismatch
+              ? `<span class="power-warn-badge">No power scheduled</span>`
+              : ""
+          ].join("");
+
+          const subText = task.isManual
+            ? `${formatTime(task.startTime)}–${formatTime(task.endTime)} · ${formatDurationLabel(task.duration)}`
+            : `${task.priority} priority · ${formatDurationLabel(task.duration)}`;
+
+          const rightTime = task.isManual
+            ? `${formatTime(task.startTime)}–${formatTime(task.endTime)}`
+            : formatTime(task.startTime);
+
           return `
             <div class="task-row" data-task-id="${task.id}">
               <div class="task-left">
@@ -357,26 +409,23 @@ function renderPlan() {
                   ${task.completed ? checkSvg : ""}
                 </div>
                 <div>
-                  <div class="task-title ${task.completed ? "completed" : ""}">${task.title}</div>
+                  <div class="task-title-row">
+                    <span class="task-title ${task.completed ? "completed" : ""}">${task.title}</span>
+                    ${badges}
+                  </div>
                   <div class="task-sub">${subText}</div>
                 </div>
               </div>
-              <div class="task-time">${formatTime(task.startTime)}</div>
+              <div class="task-time">${rightTime}</div>
             </div>
           `;
         })
         .join("");
 
       const freeHtml =
-        block.freeMinutes > 0
+        !block.isPast && block.freeMinutes > 0
           ? `<div class="free-row">Free: ${formatDurationShort(block.freeMinutes)}</div>`
           : "";
-
-      const stateCls = block.isPast
-            ? "is-past"
-            : block.isCurrent
-              ? "is-current"
-              : "";
 
       return `
         <article class="interval-card ${stateCls}">
@@ -411,21 +460,88 @@ function renderPlan() {
 }
 
 function renderPlanPreview() {
+  const labelEl = document.getElementById("planPreviewLabel");
   const previewEl = document.getElementById("planPreviewValue");
-  const duration = getDraftDurationMinutes();
-  const slot = findPlannedSlotForDraft(
-    duration,
-    state.draft.requiresPower,
-    state.draft.priority
-  );
+  const durationHint = document.getElementById("manualDurationHint");
+  if (!previewEl || !labelEl) return;
 
-  if (!slot) {
-    previewEl.textContent = "No matching slot today";
+  previewEl.classList.remove("is-warning", "is-caution");
+
+  if (state.draft.mode === "manual") {
+    labelEl.textContent = "Fixed time slot";
+    const start = timeStrToMinutes(state.draft.manualStart);
+    const end = timeStrToMinutes(state.draft.manualEnd);
+
+    if (start === null || end === null || end <= start) {
+      if (durationHint) durationHint.textContent = "End time must be after start time";
+      previewEl.textContent = "Invalid time range";
+      previewEl.classList.add("is-warning");
+      return;
+    }
+
+    const dur = end - start;
+    if (durationHint) {
+      durationHint.textContent = `Duration: ${formatDurationShort(dur)} · Highest priority`;
+    }
+
+    if (hasManualOverlap(start, end)) {
+      previewEl.textContent = `${formatTime(start)}–${formatTime(end)} · overlaps another fixed task`;
+      previewEl.classList.add("is-warning");
+      return;
+    }
+
+    const startSeg = state.segments.find((s) => start >= s.start && start < s.end);
+    const hasPowerAtStart = startSeg ? startSeg.hasPower : false;
+    const powerLabel = hasPowerAtStart ? "power on" : "no power";
+
+    if (state.draft.requiresPower && !hasPowerAtStart) {
+      previewEl.textContent = `${formatTime(start)}–${formatTime(end)} · ${powerLabel} (warning)`;
+      previewEl.classList.add("is-caution");
+    } else {
+      previewEl.textContent = `${formatTime(start)}–${formatTime(end)} · ${powerLabel}`;
+    }
     return;
   }
 
-  const powerLabel = slot.hasPower ? "power on" : "no power";
-  previewEl.textContent = `${formatTime(slot.start)}–${formatTime(slot.end)} · ${powerLabel}`;
+  labelEl.textContent = "The app will plan it for";
+  const duration = getDraftDurationMinutes();
+  const draftId = "__draft__";
+  const simulatedTasks = [
+    ...state.tasks,
+    {
+      id: draftId,
+      title: state.draft.title.trim() || "New task",
+      duration,
+      requiresPower: state.draft.requiresPower,
+      priority: state.draft.priority,
+      isManual: false,
+      completed: false
+    }
+  ];
+
+  const blocks = buildIntervalBlocks(simulatedTasks);
+  let foundSlot = null;
+
+  for (const block of blocks) {
+    const match = block.assigned.find((t) => t.id === draftId);
+    if (match) {
+      foundSlot = {
+        start: match.startTime,
+        end: match.endTime,
+        hasPower: block.hasPower
+      };
+      break;
+    }
+  }
+
+  if (!foundSlot) {
+    previewEl.textContent = "No matching slot today";
+    previewEl.classList.add("is-warning");
+    return;
+  }
+
+  const powerLabel = foundSlot.hasPower ? "power on" : "no power";
+  previewEl.textContent = `${formatTime(foundSlot.start)}–${formatTime(foundSlot.end)} · ${powerLabel}`;
 }
 
 function switchTab(tabName) {
@@ -510,7 +626,7 @@ function bindEvents() {
     renderPlanPreview();
   });
 
-  document.getElementById("addTaskForm").addEventListener("submit", (e) => {
+document.getElementById("addTaskForm").addEventListener("submit", (e) => {
     e.preventDefault();
     const titleInput = document.getElementById("taskTitleInput");
     const title = titleInput.value.trim();
@@ -519,14 +635,35 @@ function bindEvents() {
       return;
     }
 
-    state.tasks.push({
-      id: Date.now(),
-      title,
-      priority: state.draft.priority,
-      duration: getDraftDurationMinutes(),
-      requiresPower: state.draft.requiresPower,
-      completed: false
-    });
+    if (state.draft.mode === "manual") {
+      const start = timeStrToMinutes(state.draft.manualStart);
+      const end = timeStrToMinutes(state.draft.manualEnd);
+      if (start === null || end === null || end <= start || hasManualOverlap(start, end)) {
+        renderPlanPreview();
+        return;
+      }
+
+      state.tasks.push({
+        id: Date.now(),
+        title,
+        isManual: true,
+        fixedStart: start,
+        fixedEnd: end,
+        duration: end - start,
+        requiresPower: state.draft.requiresPower,
+        completed: false
+      });
+    } else {
+      state.tasks.push({
+        id: Date.now(),
+        title,
+        isManual: false,
+        priority: state.draft.priority,
+        duration: getDraftDurationMinutes(),
+        requiresPower: state.draft.requiresPower,
+        completed: false
+      });
+    }
 
     titleInput.value = "";
     state.draft.title = "";
@@ -587,6 +724,41 @@ function bindEvents() {
     pill.addEventListener("click", () => {
       switchTab("onboarding");
     });
+  });
+
+  const priorityGroup = document.getElementById("priorityFieldGroup");
+  const autoDurationGroup = document.getElementById("autoDurationGroup");
+  const manualRangeGroup = document.getElementById("manualRangeGroup");
+  const submitBtn = document.getElementById("submitTaskBtn");
+
+  document.querySelectorAll("#modeOptions .choice-pill").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document
+        .querySelectorAll("#modeOptions .choice-pill")
+        .forEach((b) => b.classList.remove("active-filled"));
+      btn.classList.add("active-filled");
+
+      const mode = btn.dataset.mode;
+      state.draft.mode = mode;
+      const isManual = mode === "manual";
+
+      priorityGroup.classList.toggle("hidden", isManual);
+      autoDurationGroup.classList.toggle("hidden", isManual);
+      manualRangeGroup.classList.toggle("hidden", !isManual);
+      submitBtn.textContent = isManual ? "Add fixed task" : "Add and auto-plan";
+
+      renderPlanPreview();
+    });
+  });
+
+  document.getElementById("manualStartInput").addEventListener("input", (e) => {
+    state.draft.manualStart = e.target.value;
+    renderPlanPreview();
+  });
+
+  document.getElementById("manualEndInput").addEventListener("input", (e) => {
+    state.draft.manualEnd = e.target.value;
+    renderPlanPreview();
   });
 }
 
@@ -815,6 +987,47 @@ function scrollToCurrentBlock(behavior = "auto") {
     top: Math.max(0, offset),
     behavior
   });
+}
+
+// Utilities for time management and finding free slots around fixed tasks
+function timeStrToMinutes(str) {
+  if (!str || !str.includes(":")) return null;
+  const [h, m] = str.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
+}
+
+function hasManualOverlap(start, end, taskList = state.tasks) {
+  return taskList.some(
+    (t) => t.isManual && start < t.fixedEnd && end > t.fixedStart
+  );
+}
+
+// builds available time gaps within the interval [winStart, winEnd], accounting for fixed tasks.
+function getFreeWindowsInRange(winStart, winEnd, manualTasks) {
+  const blockers = manualTasks
+    .filter((t) => t.fixedEnd > winStart && t.fixedStart < winEnd)
+    .map((t) => ({
+      start: Math.max(winStart, t.fixedStart),
+      end: Math.min(winEnd, t.fixedEnd)
+    }))
+    .sort((a, b) => a.start - b.start);
+
+  const windows = [];
+  let cursor = winStart;
+
+  for (const b of blockers) {
+    if (b.start > cursor) {
+      windows.push({ start: cursor, end: b.start, cursor });
+    }
+    cursor = Math.max(cursor, b.end);
+  }
+
+  if (cursor < winEnd) {
+    windows.push({ start: cursor, end: winEnd, cursor });
+  }
+
+  return windows;
 }
 
 switchTab(state.activeTab);
