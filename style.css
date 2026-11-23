@@ -1223,3 +1223,16 @@ body {
 .map-link-btn:hover {
   background: rgba(234, 179, 8, 0.26);
 }
+
+.completed-section {
+  opacity: 0.85;
+}
+
+.interval-badge.done {
+  background: rgba(140, 149, 163, 0.16);
+  color: var(--text-secondary);
+}
+
+.interval-range.done {
+  color: var(--text-secondary);
+}
