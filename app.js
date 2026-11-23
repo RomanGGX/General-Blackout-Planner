@@ -372,8 +372,14 @@ function renderPlan() {
           ? `<div class="free-row">Free: ${formatDurationShort(block.freeMinutes)}</div>`
           : "";
 
+      const stateCls = block.isPast
+            ? "is-past"
+            : block.isCurrent
+              ? "is-current"
+              : "";
+
       return `
-        <article class="interval-card">
+        <article class="interval-card ${stateCls}">
           <div class="interval-header">
             <div class="interval-left">
               <div class="interval-badge ${modeCls}">${boltSvg}</div>
@@ -440,6 +446,7 @@ function switchTab(tabName) {
   if (tabName === "today") {
     renderStatusCard();
     renderPlan();
+    requestAnimationFrame(() => scrollToCurrentBlock("auto"));
   }
   if (tabName === "add") renderPlanPreview();
   if (tabName === "map") renderMap();
@@ -788,6 +795,26 @@ function renderOnboarding() {
   }
 
   syncGroupLabels();
+}
+
+function scrollToCurrentBlock(behavior = "auto") {
+  const container = document.getElementById("planContainer");
+  if (!container) return;
+
+  const target =
+    container.querySelector(".interval-card.is-current") ||
+    container.querySelector(".interval-card:not(.is-past)");
+
+  if (!target) return;
+
+  const containerRect = container.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  const offset = targetRect.top - containerRect.top + container.scrollTop;
+
+  container.scrollTo({
+    top: Math.max(0, offset),
+    behavior
+  });
 }
 
 switchTab(state.activeTab);

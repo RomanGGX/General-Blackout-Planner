@@ -298,6 +298,12 @@ body {
   margin-bottom: 14px;
 }
 
+.interval-card.is-past {
+  opacity: 0.5;
+  filter: grayscale(0.45);
+  transition: opacity 0.2s, filter 0.2s;
+}
+
 .interval-header {
   display: flex;
   justify-content: space-between;
